@@ -96,10 +96,10 @@ class Cable:
 
 
 class CSS:
-    def __init__(self, name, dimention=None):
+    def __init__(self, name, dimension=None):
         self.name = name
         self.__set_css_type(name)
-        self.dimention = dimention
+        self.dimension = dimension
 
     def get_css_type(self):
         return self.css_type
@@ -234,7 +234,7 @@ def main():
                       for i in row[5].replace("_x000D_", "").replace("\n", "").replace(",", ".").split(";")]
         cable_grade = row[6]
         cable_cross_section = row[7]
-        cable_length = Decimal(row[8].replace(",", "."))
+        cable_length = Decimal(row[8].replace("_x000D_", "").replace(",", "."))
         cable_length_surplus = Decimal(cable_length)
 
         one_line = []  # Массив для участков одной линии
