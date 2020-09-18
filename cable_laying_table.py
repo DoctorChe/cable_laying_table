@@ -1,10 +1,10 @@
+import logging
 import math
 import openpyxl
 # from openpyxl.worksheet.table import Table, TableStyleInfo
 from openpyxl.styles import Font, Border, Side, Alignment, PatternFill
 from openpyxl.styles.colors import Color
-from decimal import Decimal
-
+from decimal import Decimal, InvalidOperation
 
 IN_XLSX_FILE = "Кабельный журнал.xlsx"
 OUT_XLSX_FILE = "Таблица прокладки кабеля.xlsx"
@@ -61,6 +61,9 @@ class Cable:
 
     def __str__(self):
         return f"{self.cable_grade} {self.conductor_count}х{str(self.conductor_cross_section).replace('.', ',')} мм²"
+
+    def __repr__(self):
+        return self.__str__()
 
     def __lt__(self, other):
         if self.cable_grade < other.cable_grade:
@@ -212,8 +215,8 @@ def write_xlsx(out_xlsx_file, table):
 
 
 def main():
-    data_list = [["css_name",
-                  "css_length",
+    data_list = [["css_name_list",
+                  "css_length_list",
                   "cable_name",
                   "cable_length",
                   "cable_length_surplus",
@@ -224,39 +227,40 @@ def main():
     wb = openpyxl.load_workbook(IN_XLSX_FILE)
     ws = wb.active  # Получаем активный лист
     for row in ws.iter_rows(min_row=1, values_only=True):
-        if row[0] == "Позиция":
+        if row[0] == "Позиция" or row[6] == "":
             continue
-        css_name = row[3].replace("_x000D_", "").replace("\n", "").split(";")
-        if not css_name[0]:
+        css_name_list = row[3].replace("_x000D_", "").replace("\n", "").split(";")
+        if not css_name_list[0]:
             continue
         # css_size = row[4].replace("_x000D_", "").replace("\n", "").split(";")
-        css_length = [Decimal(i).quantize(Decimal("1.0000"))
-                      for i in row[5].replace("_x000D_", "").replace("\n", "").replace(",", ".").split(";")]
+        css_length_list = [Decimal(i).quantize(Decimal("1.0000"))
+                           for i in row[5].replace("_x000D_", "").replace("\n", "").replace(",", ".").split(";")]
         cable_grade = row[6]
         cable_cross_section = row[7]
         cable_length = Decimal(row[8].replace("_x000D_", "").replace(",", "."))
+
         cable_length_surplus = Decimal(cable_length)
 
         one_line = []  # Массив для участков одной линии
         css_one_line_set = set()  # Множество КНС для линии
-        for i in range(len(css_name)):  # Парсим строку (разбираем по способам прокладки)
-            cable_length_surplus -= css_length[i]
+        for i in range(len(css_name_list)):  # Парсим строку (разбираем по способам прокладки)
+            cable_length_surplus -= css_length_list[i]
 
             for name in CSS_NAMES:
-                if css_name[i].startswith(name):
-                    css_name[i] = CSS_NAMES[name]
+                if css_name_list[i].startswith(name):
+                    css_name_list[i] = CSS_NAMES[name]
                     # if CSS_NAMES[name] == "По конструкциям":
-                    #     css_name[i] = CSS_NAMES[name]
+                    #     css_name_list[i] = CSS_NAMES[name]
                     # else:
-                    #     css_name[i] = f"{CSS_NAMES[name]} {css_name[i]}"
+                    #     css_name_list[i] = f"{CSS_NAMES[name]} {css_name_list[i]}"
 
-            css = css_name[i]
-            # if css_name[i] == "Лоток" or css_name[i] == "Короб":
-            #     css = f"{css_name[i]} {css_size[i]} мм"
-            # elif css_name[i] == "Гофра" or css_name[i] == "Труба":
-            #     css = f"{css_name[i]} d.{css_size[i]} мм"
+            css = css_name_list[i]
+            # if css_name_list[i] == "Лоток" or css_name_list[i] == "Короб":
+            #     css = f"{css_name_list[i]} {css_size[i]} мм"
+            # elif css_name_list[i] == "Гофра" or css_name_list[i] == "Труба":
+            #     css = f"{css_name_list[i]} d.{css_size[i]} мм"
             # else:
-            #     css = css_name[i]
+            #     css = css_name_list[i]
 
             cable = Cable(cable_grade, cable_cross_section)
 
@@ -266,10 +270,10 @@ def main():
             if css in css_one_line_set:
                 for section in one_line:
                     if section[0] == css:
-                        section[1] += css_length[i]
+                        section[1] += css_length_list[i]
             else:
                 one_line.append([css,
-                                 css_length[i],
+                                 css_length_list[i],
                                  cable,
                                  cable_length,
                                  cable_length_surplus])
@@ -314,7 +318,10 @@ def main():
                     row[summary_table[0].index(line[0])] += line[1]
                     break
             else:
-                summary_line = [line[2], cable_dict[line[2]], ]
+                try:
+                    summary_line = [line[2], cable_dict[line[2]], ]
+                except KeyError:
+                    logging.error(f'{cable_dict=}, {line[2]=}')
                 for field in fields[2:-2]:
                     if line[0] == field:
                         summary_line.append(line[1])
